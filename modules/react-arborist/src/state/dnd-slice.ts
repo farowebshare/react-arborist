@@ -39,13 +39,18 @@ export const actions = {
 function isSameCursor(a: Cursor, b: Cursor): boolean {
   if (a === b) return true;
   if (a.type !== b.type) return false;
-  if (a.type === "line" && b.type === "line") {
-    return a.index === b.index && a.level === b.level;
+  switch (a.type) {
+    case "line":
+      return b.type === "line" && a.index === b.index && a.level === b.level;
+    case "highlight":
+      return b.type === "highlight" && a.id === b.id;
+    case "none":
+      return true;
+    default: {
+      const _exhaustive: never = a;
+      return false;
+    }
   }
-  if (a.type === "highlight" && b.type === "highlight") {
-    return a.id === b.id;
-  }
-  return true;
 }
 
 /* Reducer */

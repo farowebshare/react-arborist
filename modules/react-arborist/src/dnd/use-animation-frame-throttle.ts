@@ -20,7 +20,9 @@ export function useAnimationFrameThrottle(): AnimationFrameThrottle {
     () => () => {
       if (frame.current !== null) {
         cancelAnimationFrame(frame.current);
+        frame.current = null;
       }
+      pending.current = null;
     },
     [],
   );

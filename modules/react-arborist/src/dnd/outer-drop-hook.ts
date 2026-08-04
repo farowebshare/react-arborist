@@ -20,11 +20,13 @@ export function useOuterDrop() {
       hover: (_item, m) => {
         if (!m.isOver({ shallow: true })) return;
         const offset = m.getClientOffset();
-        // See the comment in `useDropHook` about coalescing the `dragover` events.
+        const element = tree.listEl.current;
+        // See the comments in `useDropHook` about bailing out before scheduling and about
+        // coalescing the `dragover` events.
+        if (!element || !offset) return;
         schedule(() => {
-          if (!tree.listEl.current || !offset) return;
           const { cursor, drop } = computeDrop({
-            element: tree.listEl.current,
+            element: element,
             offset: offset,
             indent: tree.indent,
             node: null,

@@ -27,14 +27,18 @@ export function useDropHook(
         // still describes the previous event at this point and has moved on by the time
         // a later frame (or the `flush()` below) runs.
         const offset = m.getClientOffset();
+        const element = el.current;
+        // Bail out before scheduling. The throttle keeps only the last callback of each
+        // frame, so an unusable event must not displace a usable one that came earlier in
+        // the same frame.
+        if (!element || !offset) return;
         // `dragover` fires much more often than the browser paints. Measuring the DOM and
         // updating the store for every single event builds up a backlog of renders, which
         // makes the drag preview and the drop cursor lag behind the pointer. Only handle
         // the most recent event of each animation frame instead.
         schedule(() => {
-          if (!el.current || !offset) return;
           const { cursor, drop } = computeDrop({
-            element: el.current,
+            element: element,
             offset: offset,
             indent: tree.indent,
             node: node,

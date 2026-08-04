@@ -33,6 +33,21 @@ export const actions = {
   },
 };
 
+/* `dragover` fires many times per frame, but the resulting cursor is usually identical.
+   Comparing the cursors lets the reducer keep the previous state object so that React
+   can skip the (expensive) re-render of the tree. */
+function isSameCursor(a: Cursor, b: Cursor): boolean {
+  if (a === b) return true;
+  if (a.type !== b.type) return false;
+  if (a.type === "line" && b.type === "line") {
+    return a.index === b.index && a.level === b.level;
+  }
+  if (a.type === "highlight" && b.type === "highlight") {
+    return a.id === b.id;
+  }
+  return true;
+}
+
 /* Reducer */
 export function reducer(
   state: DndState = initialState()["dnd"],
@@ -40,13 +55,17 @@ export function reducer(
 ): DndState {
   switch (action.type) {
     case "DND_CURSOR":
-      return { ...state, cursor: action.cursor };
+      return isSameCursor(state.cursor, action.cursor)
+        ? state
+        : { ...state, cursor: action.cursor };
     case "DND_DRAG_START":
       return { ...state, dragId: action.id, dragIds: action.dragIds };
     case "DND_DRAG_END":
       return initialState()["dnd"];
     case "DND_HOVERING":
-      return { ...state, parentId: action.parentId, index: action.index };
+      return state.parentId === action.parentId && state.index === action.index
+        ? state
+        : { ...state, parentId: action.parentId, index: action.index };
     default:
       return state;
   }

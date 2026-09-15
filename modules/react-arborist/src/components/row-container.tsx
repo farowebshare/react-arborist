@@ -57,18 +57,15 @@ export const RowContainer = React.memo(function RowContainer<T>({ index, style }
     }),
     [style, tree.props.padding, tree.props.paddingTop],
   );
-  const rowAttrs: React.HTMLAttributes<any> = useMemo(
-    () => ({
-      role: "treeitem",
-      "aria-level": node.level + 1,
-      "aria-selected": node.isSelected,
-      "aria-expanded": node.isOpen,
-      style: rowStyle,
-      tabIndex: -1,
-      className: tree.props.rowClassName,
-    }),
-    [node, rowStyle, tree.props.rowClassName],
-  );
+  const rowAttrs: React.HTMLAttributes<any> = {
+    role: "treeitem",
+    "aria-level": node.level + 1,
+    "aria-selected": node.isSelected,
+    "aria-expanded": node.isOpen,
+    style: rowStyle,
+    tabIndex: -1,
+    className: tree.props.rowClassName,
+  };
 
   useEffect(() => {
     if (!node.isEditing && node.isFocused) {
@@ -79,17 +76,9 @@ export const RowContainer = React.memo(function RowContainer<T>({ index, style }
   const Node = tree.renderNode;
   const Row = tree.renderRow;
 
-  /* This container re-renders whenever any part of the tree state changes, which during a
-   * drag happens for every pointer move. Rendering the row and node components is by far
-   * the most expensive part of that, so keep the previous elements around unless something
-   * this specific row depends on has actually changed. `useFreshNode` only returns a new
-   * node instance when the state of this node changed, so it is a reliable dependency. */
-  return useMemo(
-    () => (
-      <Row node={node} innerRef={innerRef} attrs={rowAttrs}>
-        <Node node={node} tree={tree} style={nodeStyle} dragHandle={dragRef} />
-      </Row>
-    ),
-    [Row, Node, node, tree, innerRef, rowAttrs, nodeStyle, dragRef],
+  return (
+    <Row node={node} innerRef={innerRef} attrs={rowAttrs}>
+      <Node node={node} tree={tree} style={nodeStyle} dragHandle={dragRef} />
+    </Row>
   );
 });

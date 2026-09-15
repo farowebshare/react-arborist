@@ -8,13 +8,17 @@ The cause was that the library applied *every* `dragover` event to its store, an
 updates re-rendered the tree. `dragover` fires far more often than the browser paints, so the
 renders piled up and each one showed an increasingly outdated pointer position.
 
-The patch fixes this in two places:
+The patch fixes this in three places:
 
 - `state/dnd-slice.ts`: the reducer keeps the previous state object when the cursor or the hover
   destination did not actually change, so an unchanged hover triggers no re-render at all.
 - `interfaces/tree-api.ts`: `tree.hover()` reaches the store at most once per animation frame (via
   the added `dnd/animation-frame-throttle.ts`), so dragging quickly across many rows renders once
   per frame instead of once per event.
+- The drop destination behind `willReceiveDrop` moved from the `nodes.drag` slice to the `dnd`
+  slice. Every visible row consumes the whole `nodes` state through `NodesContext`, so a hover over
+  a new folder re-rendered all of them; rows now subscribe to their own destination state and only
+  the two rows whose highlight moves repaint.
 
 The hovered target itself is still recorded synchronously, so `canDrop()` and `tree.drop()` keep
 seeing the spot the pointer is actually over rather than the one the last painted frame left

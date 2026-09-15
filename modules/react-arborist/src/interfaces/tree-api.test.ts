@@ -408,7 +408,7 @@ describe("tree.hover() keeps the destination consistent with canDrop (#247)", ()
     api.hover({ parentId: null, index: 2 }, { type: "line", index: 2, level: 0 });
     await nextFrame();
     expect(api.canDrop()).toBe(true);
-    expect(api.state.nodes.drag.destinationIndex).toBe(2);
+    expect(api.state.dnd.destinationIndex).toBe(2);
     expect(api.state.dnd.cursor).toEqual({ type: "line", index: 2, level: 0 });
   });
 
@@ -435,7 +435,7 @@ describe("tree.hover() keeps the destination consistent with canDrop (#247)", ()
     // The consumer-facing destination and cursor all agree: "no drop here".
     expect(api.willReceiveDrop("box")).toBe(false);
     expect(api.dragDestinationParent).toBe(null);
-    expect(api.state.nodes.drag.destinationParentId).toBe(null);
+    expect(api.state.dnd.destinationParentId).toBe(null);
     expect(api.state.dnd.cursor).toEqual({ type: "none" });
     // But the drop guard still sees the real target, so a release is rejected
     // rather than falling back to a root drop.
@@ -460,14 +460,37 @@ describe("tree.hover() keeps the destination consistent with canDrop (#247)", ()
 describe("tree.hover() reaches the store once per animation frame", () => {
   const data = [{ id: "box", children: [{ id: "slider" }] }, { id: "folder2" }];
 
+  test("only the last hover of a frame is applied", async () => {
+    const api = setupApi({ data });
+    api.dispatch(dnd.dragStart("slider", ["slider"]));
+    const dispatch = jest.spyOn(api, "dispatch");
+
+    api.hover({ parentId: "box", index: 1 }, { type: "line", index: 1, level: 1 });
+    api.hover({ parentId: "folder2", index: 0 }, { type: "highlight", id: "folder2" });
+    expect(dispatch).not.toHaveBeenCalled();
+
+    await nextFrame();
+    // The first hover is dropped entirely; only the second one reaches the store.
+    expect(dispatch.mock.calls.map(([action]) => action)).toEqual([
+      { type: "DND_HOVERING", parentId: "folder2", index: 0 },
+      { type: "DND_DESTINATION", parentId: "folder2", index: 0 },
+      { type: "DND_CURSOR", cursor: { type: "highlight", id: "folder2" } },
+    ]);
+    expect(api.state.dnd.cursor).toEqual({ type: "highlight", id: "folder2" });
+  });
+
   test("the drop guards see the last hover, not the last painted frame", () => {
     const onMove = jest.fn();
     const api = setupApi({ data, onMove });
     api.dispatch(dnd.dragStart("box", ["box"]));
+    const dispatch = jest.spyOn(api, "dispatch");
     // Hovering box's own subtree can't be dropped on...
     api.hover({ parentId: "box", index: null }, { type: "highlight", id: "box" });
     // ...but the pointer reaches a valid spot before the frame lands.
     api.hover({ parentId: "folder2", index: 0 }, { type: "highlight", id: "folder2" });
+    // Neither hover has been applied yet, so a release now is judged by the
+    // pointer's current spot rather than the state of the last painted frame.
+    expect(dispatch).not.toHaveBeenCalled();
     expect(api.canDrop()).toBe(true);
     api.drop();
     expect(onMove).toHaveBeenCalledWith(expect.objectContaining({ parentId: "folder2", index: 0 }));

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { useDataUpdates, useNodesContext, useTreeApi } from "../context";
 import { useDragHook } from "../dnd/drag-hook";
 import { useDropHook } from "../dnd/drop-hook";
+import { useDestinationUpdates } from "../hooks/use-destination-updates";
 import { useFreshNode } from "../hooks/use-fresh-node";
 
 type Props = {
@@ -30,6 +31,7 @@ export const RowContainer = React.memo(function RowContainer<T>({ index, style }
   const _ = useNodesContext(); // So that we re-render appropriately
   const tree = useTreeApi<T>(); // Tree already has the fresh state
   const node = useFreshNode<T>(index);
+  useDestinationUpdates(node.id); // Re-render when this row becomes the drop target
 
   const el = useRef<HTMLDivElement | null>(null);
   const dragRef = useDragHook<T>(node);

@@ -560,11 +560,11 @@ export class TreeApi<T> {
   }
 
   get dragDestinationParent() {
-    return this.get(this.state.nodes.drag.destinationParentId);
+    return this.get(this.state.dnd.destinationParentId);
   }
 
   get dragDestinationIndex() {
-    return this.state.nodes.drag.destinationIndex;
+    return this.state.dnd.destinationIndex;
   }
 
   /** The target of the last hover, whether or not it has been applied to the
@@ -886,7 +886,7 @@ export class TreeApi<T> {
   willReceiveDrop(node: Identity | T) {
     const id = this.identifyNull(node);
     if (!id) return false;
-    const { destinationParentId, destinationIndex } = this.state.nodes.drag;
+    const { destinationParentId, destinationIndex } = this.state.dnd;
     return id === destinationParentId && destinationIndex === null;
   }
 

@@ -649,6 +649,11 @@ export class TreeApi<T> {
   }
 
   drop() {
+    /* The release lands in the same task as the hover before it, a frame before
+       that hover would reach the store. Apply it now so onMove — and anything it
+       reads through dragDestinationParent / willReceiveDrop — sees the spot the
+       user dropped on. */
+    this.applyHover();
     const { dragIds } = this.state.dnd;
     const { parentId, index } = this.hoverTarget;
     safeRun(this.props.onMove, {

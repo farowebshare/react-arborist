@@ -496,6 +496,31 @@ describe("tree.hover() reaches the store once per animation frame", () => {
     expect(onMove).toHaveBeenCalledWith(expect.objectContaining({ parentId: "folder2", index: 0 }));
   });
 
+  test("the drop applies the pending hover before onMove runs", () => {
+    const seen: unknown[] = [];
+    const api = setupApi({
+      data,
+      onMove: () => {
+        seen.push({
+          destination: api.dragDestinationParent?.id ?? null,
+          willReceiveDrop: api.willReceiveDrop("folder2"),
+          cursor: api.state.dnd.cursor,
+        });
+      },
+    });
+    api.dispatch(dnd.dragStart("slider", ["slider"]));
+    api.hover({ parentId: "folder2", index: null }, { type: "highlight", id: "folder2" });
+    // No frame has passed, so the store is still empty when the release comes in.
+    api.drop();
+    expect(seen).toEqual([
+      {
+        destination: "folder2",
+        willReceiveDrop: true,
+        cursor: { type: "highlight", id: "folder2" },
+      },
+    ]);
+  });
+
   test("a hover left over from a rejected drop never lands", async () => {
     const api = setupApi({ data });
     api.dispatch(dnd.dragStart("box", ["box"]));

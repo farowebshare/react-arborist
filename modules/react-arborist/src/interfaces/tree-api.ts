@@ -86,6 +86,10 @@ export class TreeApi<T> {
     return this.store.dispatch(action);
   }
 
+  /** The internal redux state. Its shape is not part of the public API and can
+   * change in any release; prefer the TreeApi getters (e.g. dragDestinationParent,
+   * willReceiveDrop) over reading it directly.
+   * @internal */
   get state() {
     return this.store.getState();
   }

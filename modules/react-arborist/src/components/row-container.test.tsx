@@ -71,3 +71,43 @@ test("a drop destination change only re-renders the rows it affects", () => {
   });
   expect(renders).toEqual(before);
 });
+
+// A line drop between top-level rows has no parent row (destinationParentId is
+// null), but a custom renderer can still draw a root insertion marker from
+// dragDestinationIndex, so every row has to see the index move.
+test("a root-level drop destination change re-renders every row", () => {
+  const renders: Record<string, number> = {};
+  function Node({ node }: NodeRendererProps<Datum>) {
+    renders[node.id] = (renders[node.id] ?? 0) + 1;
+    return <div>{node.data.name}</div>;
+  }
+
+  const ref = createRef<TreeApi<Datum> | undefined>();
+  render(
+    <Tree<Datum> data={data} ref={ref} openByDefault>
+      {Node}
+    </Tree>,
+  );
+  const api = ref.current!;
+  const all = (before: Record<string, number>) =>
+    Object.fromEntries(Object.entries(before).map(([id, n]) => [id, n + 1]));
+
+  let before = { ...renders };
+  act(() => {
+    api.dispatch(dnd.setDestination(null, 1));
+  });
+  expect(renders).toEqual(all(before));
+
+  before = { ...renders };
+  act(() => {
+    api.dispatch(dnd.setDestination(null, 2));
+  });
+  expect(renders).toEqual(all(before));
+
+  // Clearing the destination is a change for every row too.
+  before = { ...renders };
+  act(() => {
+    api.dispatch(dnd.setDestination(null, null));
+  });
+  expect(renders).toEqual(all(before));
+});

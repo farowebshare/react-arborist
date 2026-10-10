@@ -19,6 +19,7 @@ import { DefaultDragPreview } from "../components/default-drag-preview.js";
 import { DefaultContainer } from "../components/default-container.js";
 import { Cursor } from "../dnd/compute-drop.js";
 import type { DropResult } from "../dnd/drop-hook.js";
+import { createAnimationFrameThrottle } from "../dnd/animation-frame-throttle.js";
 import { Store } from "redux";
 import { createList } from "../data/create-list.js";
 import { createIndex } from "../data/create-index.js";
@@ -37,6 +38,11 @@ export class TreeApi<T> {
   idToIndex: { [id: string]: number };
   /* Memoized prefix-sum of row heights; only used for variable heights. */
   private rowOffsets: number[] | null = null;
+  /** The most recent hover, and the throttle that applies it to the store.
+   * See hover() for why the two are separate. Shared by every drop target so
+   * the last hover of a frame wins, whichever row produced it. */
+  private pendingHover: { drop: DropResult | null; cursor: Cursor | null } | null = null;
+  private hoverThrottle = createAnimationFrameThrottle();
 
   constructor(
     public store: Store<RootState, Actions>,
@@ -554,16 +560,25 @@ export class TreeApi<T> {
   }
 
   get dragDestinationParent() {
-    return this.get(this.state.nodes.drag.destinationParentId);
+    return this.get(this.state.dnd.destinationParentId);
   }
 
   get dragDestinationIndex() {
-    return this.state.nodes.drag.destinationIndex;
+    return this.state.dnd.destinationIndex;
+  }
+
+  /** The target of the last hover, whether or not it has been applied to the
+   * store yet. */
+  private get hoverTarget(): DropResult {
+    const pending = this.pendingHover?.drop;
+    if (pending) return pending;
+    const { parentId, index } = this.state.dnd;
+    return { parentId, index };
   }
 
   canDrop() {
     if (this.isFiltered) return false;
-    const parentNode = this.get(this.state.dnd.parentId) ?? this.root;
+    const parentNode = this.get(this.hoverTarget.parentId) ?? this.root;
     const dragNodes = this.dragNodes;
     const isDisabled = this.props.disableDrop;
 
@@ -578,7 +593,7 @@ export class TreeApi<T> {
       return !isDisabled({
         parentNode,
         dragNodes: this.dragNodes,
-        index: this.state.dnd.index || 0,
+        index: this.hoverTarget.index || 0,
       });
     } else if (typeof isDisabled == "string") {
       // @ts-ignore
@@ -591,14 +606,32 @@ export class TreeApi<T> {
   }
 
   /* Called by the drop hooks on every hover. Records the computed target for
-     the drop guard (canDrop() and drop() read state.dnd.parentId), then — only
-     when that target is actually droppable — surfaces it to consumers
+     the drop guard (canDrop() and drop() read hoverTarget), then — only when
+     that target is actually droppable — surfaces it to consumers
      (willReceiveDrop, dragDestinationParent) and shows the cursor. When it
      isn't droppable, the consumer-facing destination and the cursor are both
      cleared so they never disagree with canDrop() (#247); the guard still sees
      the real target, so releasing over an invalid spot is rejected rather than
      falling back to a root drop. */
   hover(drop: DropResult | null, cursor: Cursor | null) {
+    /* dragover fires many times per frame, and applying every one of them
+       re-renders the tree faster than the browser paints, which is what makes
+       the drag preview lag behind the pointer. Only the last hover of each
+       frame reaches the store. The target itself is recorded synchronously:
+       canDrop() and drop() have to see the spot the user actually released
+       on, not the one the last painted frame left behind. */
+    this.pendingHover = { drop, cursor };
+    this.hoverThrottle.schedule(() => this.applyHover());
+  }
+
+  private applyHover() {
+    const pending = this.pendingHover;
+    this.pendingHover = null;
+    /* The drag can end before this frame arrives — a rejected drop ends it
+       without ever calling a drop handler — and painting a cursor for a drag
+       that is over would leave it on screen until the next one. */
+    if (!pending || !this.state.dnd.dragId) return;
+    const { drop, cursor } = pending;
     if (drop) this.dispatch(dnd.hovering(drop.parentId, drop.index));
     if (drop && this.canDrop()) {
       this.dispatch(dnd.setDestination(drop.parentId, drop.index));
@@ -609,8 +642,20 @@ export class TreeApi<T> {
     }
   }
 
+  /* Discard the hover waiting for the next frame. Called when the drag ends. */
+  cancelHover() {
+    this.hoverThrottle.cancel();
+    this.pendingHover = null;
+  }
+
   drop() {
-    const { parentId, index, dragIds } = this.state.dnd;
+    /* The release lands in the same task as the hover before it, a frame before
+       that hover would reach the store. Apply it now so onMove — and anything it
+       reads through dragDestinationParent / willReceiveDrop — sees the spot the
+       user dropped on. */
+    this.applyHover();
+    const { dragIds } = this.state.dnd;
+    const { parentId, index } = this.hoverTarget;
     safeRun(this.props.onMove, {
       dragIds,
       parentId: parentId === ROOT_ID ? null : parentId,
@@ -846,7 +891,7 @@ export class TreeApi<T> {
   willReceiveDrop(node: Identity | T) {
     const id = this.identifyNull(node);
     if (!id) return false;
-    const { destinationParentId, destinationIndex } = this.state.nodes.drag;
+    const { destinationParentId, destinationIndex } = this.state.dnd;
     return id === destinationParentId && destinationIndex === null;
   }
 

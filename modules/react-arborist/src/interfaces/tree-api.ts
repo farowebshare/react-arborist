@@ -627,10 +627,10 @@ export class TreeApi<T> {
   private applyHover() {
     const pending = this.pendingHover;
     this.pendingHover = null;
-    /* The drag can end before this frame arrives — a rejected drop ends it
-       without ever calling a drop handler — and painting a cursor for a drag
-       that is over would leave it on screen until the next one. */
-    if (!pending || !this.state.dnd.dragId) return;
+    /* No dragId check here: a tree receiving a drag from another tree never
+       sees DND_DRAG_START, so its dragId stays null. A drag that ends before
+       the frame arrives is handled by cancelHover() instead. */
+    if (!pending) return;
     const { drop, cursor } = pending;
     if (drop) this.dispatch(dnd.hovering(drop.parentId, drop.index));
     if (drop && this.canDrop()) {
@@ -642,7 +642,8 @@ export class TreeApi<T> {
     }
   }
 
-  /* Discard the hover waiting for the next frame. Called when the drag ends. */
+  /* Discard the hover waiting for the next frame. Called when the drag ends
+     and when the tree unmounts. */
   cancelHover() {
     this.hoverThrottle.cancel();
     this.pendingHover = null;
@@ -652,10 +653,11 @@ export class TreeApi<T> {
     /* The release lands in the same task as the hover before it, a frame before
        that hover would reach the store. Apply it now so onMove — and anything it
        reads through dragDestinationParent / willReceiveDrop — sees the spot the
-       user dropped on. */
+       user dropped on. The target is read first so it can't depend on what
+       applyHover() chooses to dispatch. */
+    const { parentId, index } = this.hoverTarget;
     this.applyHover();
     const { dragIds } = this.state.dnd;
-    const { parentId, index } = this.hoverTarget;
     safeRun(this.props.onMove, {
       dragIds,
       parentId: parentId === ROOT_ID ? null : parentId,

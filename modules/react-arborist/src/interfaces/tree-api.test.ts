@@ -521,15 +521,18 @@ describe("tree.hover() reaches the store once per animation frame", () => {
     ]);
   });
 
-  test("a hover left over from a rejected drop never lands", async () => {
-    const api = setupApi({ data });
-    api.dispatch(dnd.dragStart("box", ["box"]));
-    api.hover({ parentId: "folder2", index: 0 }, { type: "highlight", id: "folder2" });
-    // The release was rejected, so no drop handler ran; the drag just ended.
-    api.dispatch(dnd.dragEnd());
+  test("a tree receiving a drag from another tree shows and drops on the hover", async () => {
+    const onMove = jest.fn();
+    // No dragStart: the drag began in a different tree, so this store never saw it.
+    const api = setupApi({ data, onMove });
+    api.hover({ parentId: "folder2", index: null }, { type: "highlight", id: "folder2" });
     await nextFrame();
-    expect(api.state.dnd.cursor).toEqual({ type: "none" });
-    expect(api.willReceiveDrop("folder2")).toBe(false);
+    expect(api.willReceiveDrop("folder2")).toBe(true);
+    expect(api.state.dnd.cursor).toEqual({ type: "highlight", id: "folder2" });
+
+    api.hover({ parentId: "box", index: 0 }, { type: "line", index: 1, level: 1 });
+    api.drop();
+    expect(onMove).toHaveBeenCalledWith(expect.objectContaining({ parentId: "box", index: 0 }));
   });
 
   test("cancelHover() discards the hover waiting for the next frame", async () => {

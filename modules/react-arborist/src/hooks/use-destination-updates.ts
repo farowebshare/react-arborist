@@ -12,9 +12,9 @@ function destinationFor(tree: TreeApi<any>, id: string) {
   const { destinationParentId, destinationIndex } = tree.state.dnd;
   if (destinationParentId === null && destinationIndex === null) return null;
   const parent = tree.dragDestinationParent;
-  if (!parent) return `${destinationParentId}:${destinationIndex}`;
-  if (!parent.isAncestorOf(tree.get(id))) return null;
-  return `${parent.id}:${destinationIndex}`;
+  if (parent && !parent.isAncestorOf(tree.get(id))) return null;
+  /* JSON keeps a root-level null parent distinct from a node whose id is "null". */
+  return JSON.stringify([destinationParentId, destinationIndex]);
 }
 
 /**

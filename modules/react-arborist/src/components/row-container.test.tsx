@@ -111,3 +111,31 @@ test("a root-level drop destination change re-renders every row", () => {
   });
   expect(renders).toEqual(all(before));
 });
+
+test('a root-level destination and a node with id "null" are different destinations', () => {
+  const renders: Record<string, number> = {};
+  function Node({ node }: NodeRendererProps<Datum>) {
+    renders[node.id] = (renders[node.id] ?? 0) + 1;
+    return <div>{node.data.name}</div>;
+  }
+
+  const ref = createRef<TreeApi<Datum> | undefined>();
+  render(
+    <Tree<Datum>
+      data={[{ id: "null", name: "null", children: [{ id: "x", name: "x" }] }]}
+      ref={ref}
+      openByDefault
+    >
+      {Node}
+    </Tree>,
+  );
+  const api = ref.current!;
+  act(() => {
+    api.dispatch(dnd.setDestination(null, 1));
+  });
+  const before = { ...renders };
+  act(() => {
+    api.dispatch(dnd.setDestination("null", 1));
+  });
+  expect(renders).toEqual({ null: before.null + 1, x: before.x + 1 });
+});
